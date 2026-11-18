@@ -31,19 +31,14 @@ Run it by hand (`workflow_dispatch`) with:
 | `tag_name` | image tag; when empty, the first snarkOS tag that contains the commit |
 | `features` | `snarkos` or `ledger-distribution` |
 
-The tag prefix selects the network: `testnet-*` → `testnet`, `canary-*` → `canary`, anything else → `mainnet`.
-
-The workflow builds each architecture on its own self-hosted runner (`snarkos-amd64-builder`, `snarkos-arm64-builder`), pushes the `-amd64` and `-arm64` images, then pushes a multi-arch manifest under the plain tag to:
-
-- `us-east1-docker.pkg.dev/<GCP_PROJECT_ID>/<GCP_ARTIFACT_REPO>/<network>/snarkos:<tag>`
-- `<DOCKERHUB_SNARKOS_REPO>:<tag>`
+The workflow builds each architecture on its own self-hosted runner (`snarkos-amd64-builder`, `snarkos-arm64-builder`) and pushes `<DOCKERHUB_SNARKOS_REPO>:<tag>-amd64` and `-arm64` to Docker Hub, then a multi-arch manifest under the plain tag `<DOCKERHUB_SNARKOS_REPO>:<tag>`.
 
 It needs these repository settings:
 
 | Kind | Name |
 |---|---|
-| Variable | `GCP_PROJECT_ID`, `GCP_ARTIFACT_REPO`, `GCP_ARTIFACT_REGISTRY_REGION`, `DOCKERHUB_SNARKOS_REPO` |
-| Secret | `GCP_SA_IMG_BUILDER_KEY`, `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` |
+| Variable | `DOCKERHUB_SNARKOS_REPO` (for example `aleohq/snarkos`) |
+| Secret | `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` |
 
 ## Manual build
 
