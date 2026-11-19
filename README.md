@@ -1,114 +1,58 @@
+# snarkos-docker
 
-# Dockerizing aleo-labs-protocol/snarkOS
-
-This repository provides a Docker build setup for [snarkOS](https://github.com/aleo-labs-protocol/snarkOS), a decentralized operating system powering Aleo.  
-It supports multi-architecture builds (x86_64 and ARM64) and is optimized for reproducible image builds.
-
----
-
-## Manual Build Instructions
-
-### 1. Clone the Repo
-
-```bash
-git clone git@github.com:AleoNet/snarkos-docker.git
-cd snarkos-docker
-```
-
-### 2. Build the Docker Image
-
-```bash
-docker build \
-  --build-arg COMMIT_OR_TAG=<tag-or-commit> \
-  -t snarkos:${tag} \
-  -f Dockerfile .
-```
-
-**Example:**
-
-```bash
-docker build \
-  --build-arg COMMIT_OR_TAG=8c7ea6c \
-  -t ${tag} .
-```
-
-### 3. Run a Node
-
-```bash
-docker run --rm -it snarkos:tag start
-```
-
----
-
-## Verify Image Version
-
-To confirm the binary version inside the container, run:
-
-```bash
-docker run --rm snarkos:${tag} --version
-```
-
----
-
-## Image Structure
-
-The Dockerfile performs a two-stage build:
-- **Builder stage** uses `cargo` to compile snarkOS (and ledger-distribution, for the ledger-distribution image).
-- **Runtime stage** installs minimal runtime dependencies and copies the final binary.
+Docker images for [snarkOS](https://github.com/aleo-labs-protocol/snarkOS), built for `linux/amd64` and `linux/arm64`.
 
 ## Images
 
-The **Build and Push SnarkOS** workflow builds one of two images from a snarkOS tag or commit:
+The **Build and Push SnarkOS** workflow (`.github/workflows/build-snarkos-features.yml`) builds one of two images from a snarkOS tag or commit:
 
 | Image choice | Dockerfile | Tag | Entrypoint |
 |---|---|---|---|
-| `snarkos` | `service/snarkos/Dockerfile` | `aleohq/snarkos:<tag>` | `/aleo/bin/snarkos` |
-| `ledger-distribution` | `service/ledger-distribution/Dockerfile` | `aleohq/snarkos:<tag>-ledger-distribution` | `/aleo/bin/snarkos`; the image also has `/aleo/bin/ledger-distribution` |
+| `snarkos` | `service/snarkos/Dockerfile` | `<tag>` | `/aleo/bin/snarkos` |
+| `ledger-distribution` | `service/ledger-distribution/Dockerfile` | `<tag>-ledger-distribution` | `/aleo/bin/snarkos`; the image also has `/aleo/bin/ledger-distribution` |
+
+Both Dockerfiles use two stages:
+- **Builder** compiles snarkOS (and ledger-distribution, for the ledger-distribution image) with `cargo`.
+- **Runtime** is `ubuntu:24.04` with the runtime dependencies and the binaries.
 
 `ledger-distribution` uploads a node's blocks to the block CDN bucket (see its [README](https://github.com/aleo-labs-protocol/snarkOS/tree/staging/ledger-distribution)). The crate exists in snarkOS from `testnet-v4.13.0`; the build fails for older tags. Run it from the same snarkOS tag as the node whose ledger it reads:
 
 ```bash
-docker run --rm --entrypoint /aleo/bin/ledger-distribution aleohq/snarkos:<tag>-ledger-distribution <network ID>
+docker run --rm --entrypoint /aleo/bin/ledger-distribution <image>:<tag>-ledger-distribution <network ID>
 ```
 
----
+## Workflow
 
-## Multi-Arch Support
+Run it by hand (`workflow_dispatch`) with:
 
-This repo supports native or emulated builds for:
-- `x86_64` (Linux)
-- `arm64` (Raspberry Pi, M1/M2 Macs, cloud ARM VMs)
+| Input | Meaning |
+|---|---|
+| `commit_or_tag` | snarkOS commit SHA or tag to build |
+| `tag_name` | image tag; when empty, the first snarkOS tag that contains the commit |
+| `features` | `snarkos` or `ledger-distribution` |
 
-To build cross-platform images using `buildx`, see [buildx docs](https://docs.docker.com/build/buildx/working-with-buildx/).
+The workflow builds each architecture on its own self-hosted runner (`snarkos-amd64-builder`, `snarkos-arm64-builder`) and pushes `<DOCKERHUB_SNARKOS_REPO>:<tag>-amd64` and `-arm64` to Docker Hub, then a multi-arch manifest under the plain tag `<DOCKERHUB_SNARKOS_REPO>:<tag>`.
 
----
+It needs these repository settings:
 
-## Security & CI
+| Kind | Name |
+|---|---|
+| Variable | `DOCKERHUB_SNARKOS_REPO` (for example `aleohq/snarkos`) |
+| Secret | `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` |
 
-- This repository includes a Gitleaks scanner to detect secrets in PRs.
-- Branch protection rules enforce pull requests for changes to `main`.
-
----
-
-## License & Attribution
-
-This repo wraps the official [snarkOS](https://github.com/aleo-labs-protocol/snarkOS) and is maintained by the community.
-
-Please refer to the original repo for protocol-level documentation.
-
-
----
-
-## Prebuilt Docker Images
-
-All builds from [aleo-labs-protocol/snarkOS releases](https://github.com/aleo-labs-protocol/snarkOS/tags)  
-are automatically built and published to Docker Hub:
-
-👉 **[https://hub.docker.com/r/aleohq/snarkos](https://hub.docker.com/r/aleohq/snarkos)**
-
-### Usage Example
+## Manual build
 
 ```bash
-docker pull aleohq/snarkos:latest
-docker run --rm aleohq/snarkos:latest --version
+git clone git@github.com:aleo-labs-protocol/snarkos-docker.git
+cd snarkos-docker
+
+docker build \
+  --build-arg COMMIT_OR_TAG=<tag-or-commit> \
+  -f service/snarkos/Dockerfile \
+  -t snarkos:<tag> .
+
+docker run --rm snarkos:<tag> --version
+docker run --rm -it -v "$PWD/data:/aleo/data" snarkos:<tag> start
 ```
+
+For the ledger-distribution image use `-f service/ledger-distribution/Dockerfile`. To build for another architecture, use [`docker buildx`](https://docs.docker.com/build/building/multi-platform/).
