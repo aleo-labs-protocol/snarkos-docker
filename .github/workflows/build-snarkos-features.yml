@@ -1,4 +1,6 @@
 name: Build and Push SnarkOS (snarkos / ledger-distribution)
+# dispatch-snarkos-releases.yml looks runs up by this title; keep the format.
+run-name: Build ${{ inputs.tag_name || inputs.commit_or_tag }} ${{ inputs.features }}
 
 on:
   workflow_dispatch:

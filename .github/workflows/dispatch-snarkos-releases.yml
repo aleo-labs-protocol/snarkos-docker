@@ -1,0 +1,83 @@
+name: Dispatch builds for new snarkOS releases
+
+# Every 30 minutes: for each mainnet (vX.Y.Z) and testnet (testnet-vX.Y.Z) release of
+# aleo-labs-protocol/snarkOS from MIN_VERSION on, start build-snarkos-features.yml
+# for both images (snarkos, ledger-distribution) unless Docker Hub already has the tag or
+# a build run for it exists. Failed builds are not retried; re-run them by hand.
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only list what would be built'
+        type: boolean
+        default: true
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: dispatch-snarkos-releases
+  cancel-in-progress: false
+
+env:
+  SNARKOS_REPO: aleo-labs-protocol/snarkOS
+  BUILD_WORKFLOW: build-snarkos-features.yml
+  MIN_VERSION: 4.13.0
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch missing builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_REPO: ${{ vars.DOCKERHUB_SNARKOS_REPO }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          [[ -n "$IMAGE_REPO" ]] || { echo "DOCKERHUB_SNARKOS_REPO is not set"; exit 1; }
+          NAMESPACE=${IMAGE_REPO%/*}
+          NAME=${IMAGE_REPO#*/}
+
+          # version >= minimum
+          at_least() { [[ "$(printf '%s\n' "$2" "$1" | sort -V | head -n1)" == "$2" ]]; }
+
+          # Titles of every build run so far (any status), from the build workflow's run-name.
+          gh run list -R "$GITHUB_REPOSITORY" --workflow "$BUILD_WORKFLOW" -L 1000 \
+            --json displayTitle -q '.[].displayTitle' > runs.txt
+
+          # Published releases, testnet ones are pre-releases; drafts aren't visible here.
+          gh api "repos/$SNARKOS_REPO/releases?per_page=50" -q '.[].tag_name' > releases.txt
+
+          while read -r TAG; do
+            [[ "$TAG" =~ ^(testnet-)?v([0-9]+\.[0-9]+\.[0-9]+)$ ]] || continue
+            at_least "${BASH_REMATCH[2]}" "$MIN_VERSION" || continue
+
+            for FEATURES in snarkos ledger-distribution; do
+              SUFFIX=""; [[ $FEATURES == ledger-distribution ]] && SUFFIX="-ledger-distribution"
+              IMAGE_TAG="$TAG$SUFFIX"
+
+              CODE=$(curl -sS -o /dev/null -w '%{http_code}' \
+                "https://hub.docker.com/v2/namespaces/$NAMESPACE/repositories/$NAME/tags/$IMAGE_TAG")
+              if [[ $CODE == 200 ]]; then echo "exists   $IMAGE_REPO:$IMAGE_TAG"; continue; fi
+              if [[ $CODE != 404 ]]; then echo "::warning::Docker Hub returned $CODE for $IMAGE_TAG; skipping"; continue; fi
+
+              if grep -qxF "Build $TAG $FEATURES" runs.txt; then
+                echo "has run  $IMAGE_REPO:$IMAGE_TAG (in progress or failed; re-run by hand)"
+                continue
+              fi
+
+              if [[ $DRY_RUN == true ]]; then
+                echo "would build $IMAGE_REPO:$IMAGE_TAG"
+              else
+                echo "build    $IMAGE_REPO:$IMAGE_TAG"
+                gh workflow run "$BUILD_WORKFLOW" -R "$GITHUB_REPOSITORY" \
+                  -f commit_or_tag="$TAG" -f tag_name="$TAG" -f features="$FEATURES"
+                echo "- \`$IMAGE_REPO:$IMAGE_TAG\`" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            done
+          done < releases.txt
