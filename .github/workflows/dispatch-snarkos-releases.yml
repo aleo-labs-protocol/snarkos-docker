@@ -1,6 +1,6 @@
 name: Dispatch builds for new snarkOS releases
 
-# Every 30 minutes: for each mainnet (vX.Y.Z) and testnet (testnet-vX.Y.Z) release of
+# Every 30 minutes: for each mainnet (vX.Y.Z) and testnet (vX.Y.Z-rc.N, older testnet-vX.Y.Z) release of
 # aleo-labs-protocol/snarkOS from MIN_VERSION on, start build-snarkos-features.yml
 # for both images (snarkos, ledger-distribution) unless Docker Hub already has the tag or
 # a build run for it exists. Failed builds are not retried; re-run them by hand.
@@ -54,7 +54,7 @@ jobs:
           gh api "repos/$SNARKOS_REPO/releases?per_page=50" -q '.[].tag_name' > releases.txt
 
           while read -r TAG; do
-            [[ "$TAG" =~ ^(testnet-)?v([0-9]+\.[0-9]+\.[0-9]+)$ ]] || continue
+            [[ "$TAG" =~ ^(testnet-)?v([0-9]+\.[0-9]+\.[0-9]+)(-rc\.[0-9]+)?$ ]] || continue
             at_least "${BASH_REMATCH[2]}" "$MIN_VERSION" || continue
 
             for FEATURES in snarkos ledger-distribution; do

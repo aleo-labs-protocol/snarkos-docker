@@ -42,7 +42,7 @@ It needs these repository settings:
 
 ## New snarkOS releases
 
-`.github/workflows/dispatch-snarkos-releases.yml` runs every 30 minutes. It reads the [snarkOS releases](https://github.com/aleo-labs-protocol/snarkOS/releases), keeps mainnet `vX.Y.Z` and testnet `testnet-vX.Y.Z` from `MIN_VERSION` (4.13.0), and starts the build workflow for both images (`<tag>` and `<tag>-ledger-distribution`). It skips an image when Docker Hub already has the tag, or when a build run titled `Build <tag> <features>` exists.
+`.github/workflows/dispatch-snarkos-releases.yml` runs every 30 minutes. It reads the [snarkOS releases](https://github.com/aleo-labs-protocol/snarkOS/releases), keeps mainnet `vX.Y.Z` and testnet `vX.Y.Z-rc.N` (older testnet releases: `testnet-vX.Y.Z`) from `MIN_VERSION` (4.13.0), and starts the build workflow for both images (`<tag>` and `<tag>-ledger-distribution`). It skips an image when Docker Hub already has the tag, or when a build run titled `Build <tag> <features>` exists.
 
 A failed build is not retried: re-run it from the Actions tab. To build a release again from scratch, delete the tag on Docker Hub and the failed run, and the next dispatch picks it up.
 
