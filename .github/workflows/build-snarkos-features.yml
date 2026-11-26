@@ -48,7 +48,8 @@ jobs:
           fi
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
 
-          if [[ "$TAG_NAME" == testnet-* ]]; then
+          # Testnet: vX.Y.Z-rc.N, older releases testnet-vX.Y.Z. Mainnet: vX.Y.Z.
+          if [[ "$TAG_NAME" == testnet-* || "$TAG_NAME" == v*-rc.* ]]; then
             NETWORK="testnet"
           elif [[ "$TAG_NAME" == canary-* ]]; then
             NETWORK="canary"
